@@ -1,11 +1,6 @@
 ADD_DEFINITIONS(-std=c++11)
 SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-include_directories(
-  thirdparty/ltio/base
-  thirdparty/ltio/net_io
-)
-
 SET(APPSRC
   ./application.cc
 )
@@ -14,6 +9,12 @@ SET(LTBASE_LINKLIBS
   ltnet
   ${GLOG_LIBRARY}
   ${ZLIB_LIBRARIES}
+)
+
+include_directories(
+  ${PROJECT_SOURCE_DIR}/app
+  ${PROJECT_SOURCE_DIR}/thirdparty/ltio
+  ${PROJECT_SOURCE_DIR}/thirdparty/ltio/thirdparty
 )
 
 ADD_LIBRARY(ltapp STATIC ${APPSRC})
