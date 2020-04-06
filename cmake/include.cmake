@@ -1,11 +1,6 @@
+# top level include dir
 
 include_directories(
   ${PROJECT_SOURCE_DIR}
   ${PROJECT_SOURCE_DIR}/thirdparty
   )
-
-add_executable(fw_app
-  fw_app/main.cpp
-  fw_app/fw_context.cpp
-  )
-
