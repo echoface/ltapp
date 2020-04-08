@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 #include "app_context.h"
+#include <base/message_loop/message_loop.h>
 
 namespace lt {
 
@@ -27,15 +28,17 @@ typedef struct BootupItem {
 } BootupItem;
 
 
-class LtApplication {
+class Application {
 public:
-  LtApplication(AppContext* context);
-  virtual ~LtApplication();
+  Application(AppContext* context);
+  virtual ~Application();
 
-  LtApplication& With(const BootupItem& item);
+  Application& With(const BootupItem& item);
 
+  void Run();
 private:
   AppContext* context_;
+  base::MessageLoop main_;
   std::list<BootupItem> bootup_tasks_;
 };
 

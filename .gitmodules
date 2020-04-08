@@ -1,3 +1,3 @@
 [submodule "thirdparty/ltio"]
 	path = thirdparty/ltio
-	url = http://github.com/HuanGong/LightingIO
+	url = https://github.com/HuanGong/LightingIO

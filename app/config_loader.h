@@ -12,7 +12,7 @@ namespace lt {
 
 class BootupItem;
 typedef std::unique_ptr<tinyxml2::XMLDocument> XMLDocPtr;
-typedef std::function<void(XMLDocPtr)> XMLLoadCallback; 
+typedef std::function<void(XMLDocPtr)> XMLLoadCallback;
 
 BootupItem WithXMLConfig(const std::string& file,
                          XMLLoadCallback callback,
