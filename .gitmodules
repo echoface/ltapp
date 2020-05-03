@@ -1,0 +1,4 @@
+[submodule "thirdparty/ltio"]
+	shallow = true
+	path = thirdparty/ltio
+	url = https://github.com/HuanGong/LightingIO.git
