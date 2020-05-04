@@ -5,6 +5,7 @@
 #include "grpcpp/impl/codegen/completion_queue.h"
 
 #include "context/call_context.h"
+#include "base/coroutine/wait_group.h"
 #include "base/coroutine/coroutine_runner.h"
 
 using etcdserverpb::PutRequest;
@@ -122,11 +123,14 @@ bool EtcdClientV3::LeaseKeepalive(int64_t lease, int64_t interval) {
 
   int64_t keepalive_request_ok_ts = std::time(NULL);
 
+  base::WaitGroup wc;
+
+  wc.Add(1);
   co_go [&, call_ctx]() {
     CallContext write_context;
     LeaseKeepAliveRequest request;
     request.set_id(lease);
-   
+
     int err_counter = 0;
     do {
 
@@ -150,6 +154,8 @@ bool EtcdClientV3::LeaseKeepalive(int64_t lease, int64_t interval) {
     stream->WritesDone(&write_context);
     etcd_ctx_await_end(write_context);
     VLOG(GLOG_VTRACE) << __func__ << " close writer done, id:" << lease;
+
+    wc.Done();
   };
 
   do {
@@ -173,6 +179,7 @@ bool EtcdClientV3::LeaseKeepalive(int64_t lease, int64_t interval) {
   }while(true);
 
   keepalive_wirte_run = false;
+  wc.Wait();
 
   //got final status from server
   VLOG(GLOG_VTRACE) << __func__ << " going to close stream, id:" << lease;
@@ -180,6 +187,7 @@ bool EtcdClientV3::LeaseKeepalive(int64_t lease, int64_t interval) {
   stream->Finish(&(call_ctx->status), call_ctx.get());
   etcd_ctx_await_end(*call_ctx);
   VLOG(GLOG_VTRACE) << __func__ << " stream closed with status:" << call_ctx->DumpStatusMessage();
+
   return call_ctx->IsOK();
 }
 

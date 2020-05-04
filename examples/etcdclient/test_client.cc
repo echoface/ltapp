@@ -87,12 +87,16 @@ void TestKeepAlive(lt::EtcdClientV3* client) {
   loop->WaitLoopEnd();
 }
 
+DECLARE_int32(v);
 
 int main(int argc, char** argv) {
   if (argc != 2) {
     std::cout << "usage: " << argv[0] << " [watch|keepalive]" << std::endl;
     return -1;
   }
+
+  FLAGS_v = 25;
+
   loop = new base::MessageLoop();
   loop->Start();
 
