@@ -82,6 +82,7 @@ void TestKeepAlive(lt::EtcdClientV3* client) {
     client->Put(kv);
 
     bool success = client->LeaseKeepalive(lease_id, 5000);
+    LOG(INFO) << "lease keepalive return:" << success;
   };
   loop->WaitLoopEnd();
 }

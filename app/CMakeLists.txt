@@ -20,16 +20,13 @@ include_directories(
   $ENV{HOME}/include
   )
 
-ADD_LIBRARY(ltapp STATIC ${APPSRC})
+add_library(ltapp STATIC ${APPSRC})
 
+add_dependencies(ltapp ltio)
 target_link_libraries(ltapp ltio)
 target_include_directories(ltapp PUBLIC
   ${PROJECT_SOURCE_DIR}
   ${PROJECT_SOURCE_DIR}/thirdparty
-  )
-
-add_dependencies(ltapp
-  ltio
   )
 
 #ADD_LIBRARY(ltapp_shared SHARED ${APPSRC})

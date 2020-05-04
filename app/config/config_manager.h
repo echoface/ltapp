@@ -26,7 +26,7 @@ class ConfigWatcher {
     ~ConfigWatcher(){}
 
     virtual void OnConfigChanged() = 0;
-    virtual MessageLoop* Loop() const {return nullptr;} 
+    virtual MessageLoop* Loop() const {return nullptr;}
 };
 typedef std::set<ConfigWatcher*> ConfigWatcherSet;
 typedef std::initializer_list<std::string> ConfigSourceNameList;
@@ -36,7 +36,7 @@ class ConfigManager {
     ConfigManager(MessageLoop* loop, ConfigSourceNameList& names);
     virtual ~ConfigManager() {};
 
-    
+
     ConfigSource GetConfigSource(const std::string&) const;
     bool RegisterWatcher(const std::string&, ConfigWatcher*);
   private:

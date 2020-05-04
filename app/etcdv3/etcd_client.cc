@@ -116,42 +116,40 @@ bool EtcdClientV3::LeaseKeepalive(int64_t lease, int64_t interval) {
   auto stream = lease_stub_->AsyncLeaseKeepAlive(client_ctx, &c_queue_, call_ctx.get());
   etcd_ctx_await_end(*call_ctx);
 
-  VLOG(GLOG_VINFO) << "lease keep alive stream connted";
-  LOG(INFO) << "lease keepalive stream connted";
+  VLOG(GLOG_VINFO) << __func__ << " stream connted, id:" << lease;
 
-  int64_t keepalive_request_ok_ts = 0;
+  bool keepalive_wirte_run = true;
+
+  int64_t keepalive_request_ok_ts = std::time(NULL);
 
   co_go [&, call_ctx]() {
     CallContext write_context;
     LeaseKeepAliveRequest request;
     request.set_id(lease);
+   
+    int err_counter = 0;
+    do {
 
-    while(true) {
-
-      LOG(INFO) << "lease keepalive send keepalive request";
+      VLOG(GLOG_VTRACE) << __func__ << " send request, id:" << lease;;
       etcd_ctx_await_pre(write_context);
       stream->Write(request, &write_context);
       etcd_ctx_await_end(write_context);
-      LOG(INFO) << "lease keepalive send keepalive request";
-
       int64_t last_success = keepalive_request_ok_ts;
       if (write_context.Success()) {
-
-        keepalive_request_ok_ts = std::time(NULL);
-        LOG(INFO) << __func__ << "lease keepalive send done";
-
-      } else if (std::time(NULL) - keepalive_request_ok_ts > keepalive_max_delay) {
-
-        LOG(INFO) << __func__ << "lease keepalive send failed";
-        LOG(INFO) << __func__ << "lease keepalive close writer";
-        etcd_ctx_await_pre(write_context);
-        stream->WritesDone(&write_context);
-        etcd_ctx_await_pre(write_context);
+        err_counter = 0;
+        VLOG(GLOG_VTRACE) << __func__ << " send request done, id:" << lease;;
+      } else if (++err_counter >= 6) {
+        LOG(ERROR) << __func__ << " send request fail, id:" << lease;;
         break;
       }
-
       co_sleep(interval);
-    }
+    } while(keepalive_wirte_run && err_counter < 6);
+
+    VLOG(GLOG_VTRACE) << __func__ << " close writer, id:" << lease;
+    etcd_ctx_await_pre(write_context);
+    stream->WritesDone(&write_context);
+    etcd_ctx_await_end(write_context);
+    VLOG(GLOG_VTRACE) << __func__ << " close writer done, id:" << lease;
   };
 
   do {
@@ -160,17 +158,28 @@ bool EtcdClientV3::LeaseKeepalive(int64_t lease, int64_t interval) {
     etcd_ctx_await_end(*call_ctx);
 
     if (!call_ctx->Success()) {
-      LOG(INFO) << __func__ << " keepalive wait response failed";
-      continue;
+      LOG(ERROR) << __func__ << " read response failed, id:" << lease;
+      break;
     }
-    LOG(INFO) << __func__ << " keepalive response:" << call_ctx->GetResponse().ttl();
-  }while(std::time(NULL) - keepalive_request_ok_ts > keepalive_max_delay);
+    const auto response = call_ctx->GetResponse();
+    if (response.ttl() == 0 || lease != response.id()) {
+      LOG(INFO) << __func__ << " lease seems be revoked"
+        << ", id:" << response.id() << " ttl:" << response.ttl();
+      break;
+    }
+
+    VLOG(GLOG_VTRACE) << __func__ << " read response"
+      << ", id:" << response.id() << " ttl:" << response.ttl();
+  }while(true);
+
+  keepalive_wirte_run = false;
 
   //got final status from server
+  VLOG(GLOG_VTRACE) << __func__ << " going to close stream, id:" << lease;
   etcd_ctx_await_pre(*call_ctx);
   stream->Finish(&(call_ctx->status), call_ctx.get());
   etcd_ctx_await_end(*call_ctx);
-  LOG(INFO) << __func__ << " keepalive end with status:" << call_ctx->DumpStatusMessage();
+  VLOG(GLOG_VTRACE) << __func__ << " stream closed with status:" << call_ctx->DumpStatusMessage();
   return call_ctx->IsOK();
 }
 

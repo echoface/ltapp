@@ -7,12 +7,7 @@ add_executable(sample_app
 target_link_libraries(sample_app
   ltapp
   ltio
-  coro
-  lt3rd
   grpc++
-  glog::glog
-  gflags::gflags
-  pthread
   )
 
 target_include_directories(sample_app
@@ -29,12 +24,7 @@ add_executable(etcdclient_test
 target_link_libraries(etcdclient_test
   ltapp
   ltio
-  coro
-  lt3rd
   grpc++
-  glog::glog
-  gflags::gflags
-  pthread
   )
 
 target_include_directories(etcdclient_test
