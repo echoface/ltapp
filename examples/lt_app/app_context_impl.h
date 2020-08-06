@@ -33,12 +33,7 @@ class AppContextImpl : public AppContext {
   private:
     lt::XmlConfig config_;
 
-
-  std::unique_ptr<KV::Stub> kv_stub_;
-  std::unique_ptr<Watch::Stub> watch_stub_;
-  std::unique_ptr<Lease::Stub> lease_stub_;
-    //fw::ConfigManager rc_manager_;
-  base::MessageLoop loop_;
+    //std::unique_ptr<Registry>
 };
 
 }

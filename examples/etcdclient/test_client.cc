@@ -69,6 +69,7 @@ void TestWatch(lt::EtcdClientV3* client) {
 }
 
 void TestKeepAlive(lt::EtcdClientV3* client) {
+  lt::RefKeepAliveContext keepalive_ctx;
   co_go loop << [&]() {
 
     LOG(INFO) << "grant a lease ttl:" << 60 << "(s)";
@@ -81,8 +82,9 @@ void TestKeepAlive(lt::EtcdClientV3* client) {
     kv.set_lease(lease_id);
     client->Put(kv);
 
-    bool success = client->LeaseKeepalive(lease_id, 5000);
-    LOG(INFO) << "lease keepalive return:" << success;
+    keepalive_ctx = client->LeaseKeepalive(lease_id, 5000);
+    CHECK(keepalive_ctx);
+    LOG(INFO) << "lease keepalive return:" << 0;
   };
   loop->WaitLoopEnd();
 }

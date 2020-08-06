@@ -8,8 +8,8 @@ On async streams on servers, you simple call  stream->Finish(const Status& statu
 
 Sequence of events on the client side:
 1) Create a client bidi stream "cli_stream"
-2) Do one or more cli_stream->Read() and cli_stream->Write() (need to match 
-3) "half-close" i.e close the stream (for writes) from client side by doing: cli_stream->WritesDone(); 
+2) Do one or more cli_stream->Read() and cli_stream->Write() (need to match
+3) "half-close" i.e close the stream (for writes) from client side by doing: cli_stream->WritesDone();
 4) Note: At this point, cli_stream->Read() will still work (since the server has not closed the stream from its side)
 5) Once the server closes the stream from it's side (cli_stream->Read() would return false)
 6) Do cli_stream->Finish() to get the status from the server
@@ -19,6 +19,6 @@ Sequence of events on the server side:
 2) Do one more server_stream->Read() and server_stream->Write()  (need to match with step #2 in client side)
 3) Once client does a close from its side,  server_stream->Read() would return "false"
 4) Note: At this point server_stream->Write() will still work.
-5) Now close the writes stream from server side and send a status by calling server_stream->Finish()  
+5) Now close the writes stream from server side and send a status by calling server_stream->Finish()
 ```
 

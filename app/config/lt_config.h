@@ -6,6 +6,20 @@
 #include <cinttypes>
 #include "thirdparty/tinyxml2/tinyxml2.h"
 
+/*
+ *
+ * struct XXConfig : public XmlReciever {
+ *
+ * }
+ *
+ * class LtXMLConfigurator {
+ *
+ * };
+ *
+ * LtXMLConfigurator loader;
+ * loader.Register(name, receive);
+ * loader.Load();
+ * */
 
 namespace lt {
 

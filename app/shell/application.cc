@@ -167,7 +167,7 @@ bool Application::RunBootupTask() {
 
   wg.Wait();
   for (auto task : failed_tasks_) {
-    LOG(ERROR) << __func__ << " PrepareTask:" << task->name << " Failed";
+    LOG(ERROR) << "PrepareTask:" << task->name << " Failed";
   }
   cv_.notify_all();
   return failed_tasks_.empty();

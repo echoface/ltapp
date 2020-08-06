@@ -14,8 +14,12 @@
 #include "grpcpp/impl/codegen/status.h"
 #include "grpcpp/impl/codegen/config_protobuf.h"
 
-#include "base/message_loop/message_loop.h"
+#include "context/call_context.h"
+#include "context/keepalive_ctx.h"
 
+namespace base {
+  class MessageLoop;
+}
 using base::MessageLoop;
 using etcdserverpb::KV;
 using etcdserverpb::Watch;
@@ -25,11 +29,15 @@ using grpc::protobuf::Message;
 using namespace mvccpb;
 using namespace etcdserverpb;
 typedef std::vector<mvccpb::KeyValue> KeyValues;
+
+
 namespace lt {
 
 class EtcdWatcher;
+
 class EtcdClientV3 {
 public:
+
   struct Options {
     std::string addr;
   };
@@ -38,21 +46,26 @@ public:
   EtcdClientV3(MessageLoop* io);
   ~EtcdClientV3();
 
+  void Initilize(const Options& opt);
+  void Finalize();
+
   //success return a reversion id, return -1 when failed
   int64_t Put(const KeyValue& kvs);
   int64_t Put(const PutRequest& request);
 
-  KeyValues Range(const std::string& key,
-                  bool with_prefix = true);
-
   int64_t LeaseGrant(int ttl);
 
   /*this call not back utill error or revoke a lease*/
-  bool LeaseKeepalive(int64_t lease, int64_t interval = 1000);
+  RefKeepAliveContext LeaseKeepalive(int64_t lease, int64_t interval = 1000);
 
-  void Initilize(const Options& opt);
+  KeyValues Range(const std::string& key, bool with_prefix = true);
 private:
   friend class EtcdWatcher;
+
+  void KeepAliveInternal(RefKeepAliveContext ctx,
+                         int64_t lease_id,
+                         int64_t interval);
+
   void PollCompleteQueueMain();
 
   base::MessageLoop* loop_;

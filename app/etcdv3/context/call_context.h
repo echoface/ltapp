@@ -1,4 +1,3 @@
-
 #ifndef _LTAPP_ETCD_V3_CALL_CONTEXT_H_H
 #define _LTAPP_ETCD_V3_CALL_CONTEXT_H_H
 
@@ -20,6 +19,7 @@
 #include <memory>
 #include <sys/types.h>
 #include <thread>
+#include "base/coroutine/coroutine_runner.h"
 
 using etcdserverpb::KV;
 using etcdserverpb::Watch;
@@ -39,6 +39,8 @@ namespace lt {
 typedef std::function<void()> ContextResumer;
 class CallContext {
   public:
+    CallContext() : cancel_(false) {
+    }
     virtual ~CallContext(){};
 
     void LockContext();
@@ -46,6 +48,7 @@ class CallContext {
     bool Success() const {return success_;}
   protected:
     bool success_ = false;
+    std::atomic<bool> cancel_;
   private:
     ContextResumer resumer_;
 };
@@ -56,7 +59,7 @@ public:
   std::string DumpStatusMessage() {
     return status.error_message();
   }
-  bool IsOK() const {return status.ok();};
+  bool IsStatusOK() const {return status.ok();};
   const R& GetResponse() const {return response;}
   grpc::ClientContext* ClientContext() {return &context;}
 public:
@@ -65,49 +68,15 @@ public:
   grpc::ClientContext context;
 };
 
-typedef ClientAsyncReaderWriter<WatchRequest,
-                                WatchResponse> WatcherStream;
-typedef std::function<void (const mvccpb::Event&)> WatchEventFunc;
-class EtcdWatcher;
-
-class WatchContext : public CallContext {
-public:
-  WatchContext(Watch::Stub* stub,  base::MessageLoop* loop);
-
-  //NOTE: must call in coro context, be clear what you a doing
-  // return true and change event response will be fill
-  bool WaitEvent(WatchResponse* response);
-
-  // this all is safe for calling in anywhere
-  // it will return at once, when change coming,
-  // event_handler will be called
-  void WaitEvent(WatchEventFunc event_handler);
-
-  int64_t WatchId() const {return watch_id_;}
-private:
-  friend class EtcdWatcher;
-  void wait_event_internal(WatchEventFunc handler);
-
-  bool InitWithQueue(const WatchRequest& request,
-                     grpc::CompletionQueue* c_queue);
-
-  int64_t watch_id_ = 0;
-  WatchResponse response_;
-  grpc::ClientContext context_;
-  Watch::Stub* stub_ = nullptr;
-  base::MessageLoop* loop_ = nullptr;
-  std::unique_ptr<WatcherStream> stream_;
-};
-typedef std::shared_ptr<WatchContext> RefWatchContext;
 
 } //end namespace lt
 
 #define etcd_ctx_await_pre(ctx) do {(ctx).LockContext();}while(0)
 
-#define etcd_ctx_await_end(ctx)                                                          \
-  do {                                                                                   \
-    LOG(INFO) << "context:" << &(ctx) << " wait@" << __func__ << " line:" << __LINE__;   \
-    co_pause;                                                                            \
+#define etcd_ctx_await_end(ctx)                                                                 \
+  do {                                                                                          \
+    VLOG(GLOG_VINFO) << "context:" << &(ctx) << " wait@" << __func__ << " line:" << __LINE__;   \
+    co_pause;                                                                                   \
   }while(0)
 
 #endif

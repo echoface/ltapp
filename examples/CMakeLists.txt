@@ -1,7 +1,7 @@
 
 add_executable(sample_app
-  fw_app/main.cpp
-  fw_app/app_context_impl.cc
+  lt_app/main.cpp
+  lt_app/app_context_impl.cc
   )
 
 target_link_libraries(sample_app

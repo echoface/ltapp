@@ -31,7 +31,6 @@ public:
   static BootTaskPtr New(const string& name,
                          BoolTask boot_task,
                          ExcRunType run_type = ExcRunType::kSequenceType);
-public:
   BoolTask     task;
   std::string  name;
   ExcRunType exc_type;

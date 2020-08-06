@@ -2,17 +2,21 @@ ADD_DEFINITIONS(-std=c++11)
 
 SET(APPSRC
   shell/application.cc
+  shell/app_context.cc
   config/lt_config.cc
 
-  ./etcdv3/proto/kv.pb.cc
-  ./etcdv3/proto/auth.pb.cc
-  ./etcdv3/proto/rpc.pb.cc
-  ./etcdv3/proto/v3lock.pb.cc
-  ./etcdv3/proto/rpc.grpc.pb.cc
+  etcdv3/proto/kv.pb.cc
+  etcdv3/proto/auth.pb.cc
+  etcdv3/proto/rpc.pb.cc
+  etcdv3/proto/v3lock.pb.cc
+  etcdv3/proto/rpc.grpc.pb.cc
+  etcdv3/etcd_client.cc
+  etcdv3/etcd_watcher.cc
+  etcdv3/context/call_context.cc
+  etcdv3/context/keepalive_ctx.cc
+  etcdv3/context/watch_context.cc
 
-  ./etcdv3/etcd_client.cc
-  ./etcdv3/etcd_watcher.cc
-  ./etcdv3/context/call_context.cc
+  registry/etcd_registry.cc
 )
 
 include_directories(
@@ -24,10 +28,10 @@ add_library(ltapp STATIC ${APPSRC})
 
 add_dependencies(ltapp ltio)
 target_link_libraries(ltapp ltio)
-target_include_directories(ltapp PUBLIC
-  ${PROJECT_SOURCE_DIR}
-  ${PROJECT_SOURCE_DIR}/thirdparty
-  )
+target_include_directories(ltapp
+  PUBLIC ${PROJECT_SOURCE_DIR}
+  PUBLIC ${PROJECT_SOURCE_DIR}/thirdparty
+)
 
 #ADD_LIBRARY(ltapp_shared SHARED ${APPSRC})
 #
