@@ -113,7 +113,7 @@ RefKeepAliveContext EtcdClientV3::LeaseKeepalive(int64_t lease, int64_t interval
   }
 
   VLOG(GLOG_VINFO) << __func__ << " stream connted, id:" << lease;
-  co_go [&]() {
+  co_go [=]() {
     KeepAliveInternal(call_ctx, lease, interval);
   };
   return call_ctx;
@@ -123,10 +123,9 @@ void EtcdClientV3::KeepAliveInternal(RefKeepAliveContext ctx,
                                      int64_t lease_id,
                                      int64_t interval) {
 
-  bool wirter_run = true;
 
   base::WaitGroup wc;
-  wc.Add(1);
+  wc.Add(2);
 
   //write keepalive request
   co_go [&, ctx]() {
@@ -137,52 +136,47 @@ void EtcdClientV3::KeepAliveInternal(RefKeepAliveContext ctx,
 
     int err_counter = 0;
     do {
-      VLOG(GLOG_VTRACE) << __func__ << " send request, id:" << lease_id;
+      VLOG(GLOG_VTRACE) << "going to send keepalive request, lease:" << lease_id;
       etcd_ctx_await_pre(write_context);
       ctx->stream->Write(request, &write_context);
       etcd_ctx_await_end(write_context);
       if (write_context.Success()) {
         err_counter = 0;
-        VLOG(GLOG_VTRACE) << __func__ << " send request done, id:" << lease_id;
+        LOG(INFO) << "send keepalive request done, lease:" << lease_id;
       } else if (++err_counter >= 6) {
-        LOG(ERROR) << __func__ << " send request fail, id:" << lease_id;
+        LOG(ERROR) << "send keepalive request fail, lease:" << lease_id;
         break;
       }
       co_sleep(interval);
     } while(!(ctx->cancel) && err_counter < 6);
 
-    VLOG(GLOG_VTRACE) << __func__ << " close writer, id:" << lease_id;
+    LOG(INFO) << "close keepalive writer, lease:" << lease_id;
     etcd_ctx_await_pre(write_context);
     ctx->stream->WritesDone(&write_context);
     etcd_ctx_await_end(write_context);
-    VLOG(GLOG_VTRACE) << __func__ << " close writer done, id:" << lease_id;
+    LOG(INFO) << "close keepalive writer done, lease:" << lease_id;
 
     wc.Done();
   };
 
-  // read keepavlie response
-  wc.Add(1);
   co_go [&]() {
+
+    CallContext read_context;
     do {
-      etcd_ctx_await_pre(*ctx);
-      ctx->stream->Read(&(ctx->response), ctx.get());
-      etcd_ctx_await_end(*ctx);
+      VLOG(GLOG_VTRACE) << "going to read keepalive response, lease:" << lease_id;
+      etcd_ctx_await_pre(read_context);
+      ctx->stream->Read(&(ctx->response), &read_context);
+      etcd_ctx_await_end(read_context);
 
       if (!ctx->Success()) {
-        LOG(ERROR) << __func__ << " read response failed, id:" << lease_id;
+        LOG(ERROR) << "read keepalive response failed, id:" << lease_id;
         break;
       }
       const auto response = ctx->GetResponse();
-      if (response.ttl() == 0 || lease_id != response.id()) {
-        LOG(INFO) << __func__ << " lease seems be revoked"
-          << ", id:" << response.id() << " ttl:" << response.ttl();
-        break;
-      }
-      VLOG(GLOG_VTRACE) << __func__ << " read response"
-        << ", id:" << response.id() << " ttl:" << response.ttl();
-    }while(true);
+      LOG(INFO) << "read keepalive response"
+        << ", lease:" << response.id() << " ttl:" << response.ttl();
+    } while(!(ctx->cancel));
 
-    wirter_run = false;
     wc.Done();
   };
 

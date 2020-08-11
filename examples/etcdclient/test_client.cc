@@ -1,4 +1,5 @@
 #include <bits/stdint-intn.h>
+#include <gflags/gflags_declare.h>
 #include <glog/logging.h>
 
 #include <app/etcdv3/etcd_client.h>
@@ -6,6 +7,7 @@
 
 #include <base/utils/string/str_utils.h>
 #include <base/coroutine/coroutine_runner.h>
+#include <unistd.h>
 
 base::MessageLoop* loop = NULL;
 
@@ -87,9 +89,11 @@ void TestKeepAlive(lt::EtcdClientV3* client) {
     LOG(INFO) << "lease keepalive return:" << 0;
   };
   loop->WaitLoopEnd();
+  LOG(INFO) << __func__ << " leave";
 }
 
 DECLARE_int32(v);
+DECLARE_string(ep);
 
 int main(int argc, char** argv) {
   if (argc != 2) {
@@ -97,7 +101,7 @@ int main(int argc, char** argv) {
     return -1;
   }
 
-  FLAGS_v = 25;
+  FLAGS_v = 0;
 
   loop = new base::MessageLoop();
   loop->Start();

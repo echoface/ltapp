@@ -8,7 +8,6 @@ namespace lt {
 void CallContext::ResumeContext(bool ok) {
   success_ = ok;
   if (resumer_) {
-    LOG(INFO) << "context@" << this << " going to resume";
     return resumer_();
   }
   LOG(ERROR) << "context@" << this << " no resumer locked";
