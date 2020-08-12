@@ -38,7 +38,8 @@ RefWatchContext EtcdWatcher::Watch(const WatchRequest& request) {
   RefWatchContext ctx(new WatchContext(stub, loop()));
 
   if (!ctx->InitWithQueue(request, c_queue())) {
-    LOG(ERROR) << __func__ << " watch failed";
+    LOG(ERROR) << __func__ << " init watcher failed";
+    return nullptr;
   }
   return ctx;
 }

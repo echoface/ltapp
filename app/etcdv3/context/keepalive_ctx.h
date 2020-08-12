@@ -2,7 +2,7 @@
 #define _LTAPP_ETCD_V3_KEEPALIVE_CONTEXT_H_H
 
 #include "call_context.h"
-#include <atomic>
+#include "grpc/grpc.h"
 
 namespace lt {
 
@@ -16,21 +16,24 @@ typedef std::unique_ptr<KeepAliverStream> KeepAliverStreamPtr;
 
 class KeepAliveContext : public CallContext {
 public:
-  bool Initilize(Lease::Stub* stub,
-                 grpc::CompletionQueue* c_queue);
-
   void Cancel();
 
   bool IsStatusOK() const {return status.ok();};
+  std::string DumpStatusMessage() const;
+private:
+  friend class EtcdClientV3;
+  bool Initilize(Lease::Stub* stub,
+                 grpc::CompletionQueue* c_queue);
+
+  void KeepAliveInternal(int64_t lease, int64_t interval);
+
   grpc::ClientContext* ClientContext() {return &context;}
   const LeaseKeepAliveResponse& GetResponse() const {
     return response;
   }
 
-  std::string DumpStatusMessage() const;
-public:
+  bool cancel;
   grpc::Status status;
-  std::atomic<bool> cancel;
   KeepAliverStreamPtr stream;
   grpc::ClientContext context;
   LeaseKeepAliveResponse response;

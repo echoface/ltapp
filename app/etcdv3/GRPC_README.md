@@ -21,4 +21,3 @@ Sequence of events on the server side:
 4) Note: At this point server_stream->Write() will still work.
 5) Now close the writes stream from server side and send a status by calling server_stream->Finish()
 ```
-

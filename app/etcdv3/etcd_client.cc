@@ -5,7 +5,6 @@
 #include "grpcpp/impl/codegen/completion_queue.h"
 
 #include "context/call_context.h"
-#include "base/coroutine/wait_group.h"
 #include "base/message_loop/message_loop.h"
 #include "base/coroutine/coroutine_runner.h"
 
@@ -16,11 +15,12 @@ namespace lt {
 
 EtcdClientV3::EtcdClientV3(MessageLoop* io)
   : loop_(io) {
+  loop_->PostTask(FROM_HERE, &MessageLoop::InstallPersistRunner, io, (base::PersistRunner*)this);
 }
 
 EtcdClientV3::~EtcdClientV3() {
   Finalize();
-  if (thread_->joinable()) {
+  if (thread_ && thread_->joinable()) {
     thread_->join();
   }
 }
@@ -111,85 +111,10 @@ RefKeepAliveContext EtcdClientV3::LeaseKeepalive(int64_t lease, int64_t interval
   if (!call_ctx->Initilize(lease_stub_.get(), &c_queue_)) {
     return nullptr;
   }
-
-  VLOG(GLOG_VINFO) << __func__ << " stream connted, id:" << lease;
-  co_go [=]() {
-    KeepAliveInternal(call_ctx, lease, interval);
-  };
+  VLOG(GLOG_VINFO) << __func__ << " keeaplive stream connted, id:" << lease;
+  co_go std::bind(&KeepAliveContext::KeepAliveInternal, call_ctx, lease, interval);
   return call_ctx;
 }
-
-void EtcdClientV3::KeepAliveInternal(RefKeepAliveContext ctx,
-                                     int64_t lease_id,
-                                     int64_t interval) {
-
-
-  base::WaitGroup wc;
-  wc.Add(2);
-
-  //write keepalive request
-  co_go [&, ctx]() {
-    CallContext write_context;
-
-    LeaseKeepAliveRequest request;
-    request.set_id(lease_id);
-
-    int err_counter = 0;
-    do {
-      VLOG(GLOG_VTRACE) << "going to send keepalive request, lease:" << lease_id;
-      etcd_ctx_await_pre(write_context);
-      ctx->stream->Write(request, &write_context);
-      etcd_ctx_await_end(write_context);
-      if (write_context.Success()) {
-        err_counter = 0;
-        LOG(INFO) << "send keepalive request done, lease:" << lease_id;
-      } else if (++err_counter >= 6) {
-        LOG(ERROR) << "send keepalive request fail, lease:" << lease_id;
-        break;
-      }
-      co_sleep(interval);
-    } while(!(ctx->cancel) && err_counter < 6);
-
-    LOG(INFO) << "close keepalive writer, lease:" << lease_id;
-    etcd_ctx_await_pre(write_context);
-    ctx->stream->WritesDone(&write_context);
-    etcd_ctx_await_end(write_context);
-    LOG(INFO) << "close keepalive writer done, lease:" << lease_id;
-
-    wc.Done();
-  };
-
-  co_go [&]() {
-
-    CallContext read_context;
-    do {
-      VLOG(GLOG_VTRACE) << "going to read keepalive response, lease:" << lease_id;
-      etcd_ctx_await_pre(read_context);
-      ctx->stream->Read(&(ctx->response), &read_context);
-      etcd_ctx_await_end(read_context);
-
-      if (!ctx->Success()) {
-        LOG(ERROR) << "read keepalive response failed, id:" << lease_id;
-        break;
-      }
-      const auto response = ctx->GetResponse();
-      LOG(INFO) << "read keepalive response"
-        << ", lease:" << response.id() << " ttl:" << response.ttl();
-    } while(!(ctx->cancel));
-
-    wc.Done();
-  };
-
-  wc.Wait();
-
-  //got final status from server
-  VLOG(GLOG_VTRACE) << __func__ << " going to close stream, id:" << lease_id;
-  etcd_ctx_await_pre(*ctx);
-  ctx->stream->Finish(&(ctx->status), ctx.get());
-  etcd_ctx_await_end(*ctx);
-  VLOG(GLOG_VTRACE) << __func__ << " stream closed with status:" << ctx->DumpStatusMessage();
-}
-
 
 void EtcdClientV3::Finalize() {
   c_queue_.Shutdown();
@@ -205,7 +130,44 @@ void EtcdClientV3::Initilize(const Options& opt) {
   CHECK(watch_stub_);
   lease_stub_ = Lease::NewStub(channel);
   CHECK(lease_stub_);
-  thread_.reset(new std::thread(std::bind(&EtcdClientV3::PollCompleteQueueMain, this)));
+  if (!opt.poll_in_loop) {
+    thread_.reset(new std::thread(std::bind(&EtcdClientV3::PollCompleteQueueMain, this)));
+  }
+}
+
+void EtcdClientV3::Sched() {
+  bool ok = false;
+  void* got_tag = nullptr;
+  bool poll_continue = true;
+
+  //VLOG(GLOG_VTRACE) << __func__ << " etcd grpc CompletionQueue poll start";
+  do {
+    auto deadline = std::chrono::system_clock::now() + std::chrono::microseconds(0);
+
+    switch (c_queue_.AsyncNext(&got_tag, &ok, deadline)) {
+      case grpc::CompletionQueue::GOT_EVENT: {
+        // Verify that the request was completed successfully. Note that "ok"
+        // corresponds solely to the request for updates introduced by Finish().
+        LOG_IF(ERROR, !ok) << " grpc operation failed for context:" << got_tag;
+
+        // The tag in this example is the memory location of the call object
+        CallContext* call_context = static_cast<CallContext*>(got_tag);
+        GPR_ASSERT(call_context);
+
+        call_context->ResumeContext(ok);
+        poll_continue = true;
+      } break;
+      case grpc::CompletionQueue::TIMEOUT:
+      case grpc::CompletionQueue::SHUTDOWN: {
+        poll_continue = false;
+        LOG(INFO) << __func__ << " etcd grpc CompletionQueue poll shutdown or timeout";
+      } break;
+      defaut:
+        poll_continue = false;
+        break;
+    }
+  } while(poll_continue);
+  //VLOG(GLOG_VTRACE) << __func__ << " etcd grpc CompletionQueue poll end";
 }
 
 void EtcdClientV3::PollCompleteQueueMain() {

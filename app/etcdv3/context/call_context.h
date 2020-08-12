@@ -30,6 +30,7 @@ using etcdserverpb::WatchResponse;
 
 using grpc::protobuf::Message;
 using grpc::ClientAsyncReaderWriter;
+using grpc::CompletionQueue;
 
 using mvccpb::Event;
 using mvccpb::KeyValue;

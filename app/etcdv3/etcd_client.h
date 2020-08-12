@@ -35,11 +35,12 @@ namespace lt {
 
 class EtcdWatcher;
 
-class EtcdClientV3 {
+class EtcdClientV3 : base::PersistRunner {
 public:
 
   struct Options {
     std::string addr;
+    bool poll_in_loop = true;
   };
 
 
@@ -55,25 +56,25 @@ public:
 
   int64_t LeaseGrant(int ttl);
 
-  /*this call not back utill error or revoke a lease*/
+  KeyValues Range(const std::string& key, bool with_prefix = true);
+
+  /*this keepalive lease in background and return a context use for cancelling*/
   RefKeepAliveContext LeaseKeepalive(int64_t lease, int64_t interval = 1000);
 
-  KeyValues Range(const std::string& key, bool with_prefix = true);
 private:
   friend class EtcdWatcher;
 
-  void KeepAliveInternal(RefKeepAliveContext ctx,
-                         int64_t lease_id,
-                         int64_t interval);
+  //override from base::PersistRunner
+  void Sched();
 
   void PollCompleteQueueMain();
 
   base::MessageLoop* loop_;
+  CompletionQueue c_queue_;
   std::unique_ptr<KV::Stub> kv_stub_;
   std::unique_ptr<Watch::Stub> watch_stub_;
   std::unique_ptr<Lease::Stub> lease_stub_;
   std::unique_ptr<std::thread> thread_;
-  grpc::CompletionQueue c_queue_;
 };
 
 }
