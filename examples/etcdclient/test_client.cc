@@ -104,12 +104,15 @@ int main(int argc, char** argv) {
   FLAGS_v = 0;
 
   loop = new base::MessageLoop();
+  loop->SetLoopName("grpc_poll");
   loop->Start();
 
   std::shared_ptr<lt::EtcdClientV3>  client(new lt::EtcdClientV3(loop));
-  client->Initilize({
-    "localhost:2379"
-  });
+  lt::EtcdClientV3::Options opt;
+  opt.addr = "localhost:2379";
+  opt.poll_in_loop = true;
+
+  client->Initilize(opt);
 
   std::string case_name(argv[1]);
   if (case_name == "watch") {
