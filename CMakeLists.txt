@@ -3,12 +3,12 @@ cmake_minimum_required(VERSION 3.5)
 project(LtApplication VERSION 0.0.1 LANGUAGES C CXX)
 
 # for generate omplete database
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+SET(CMAKE_CXX_STANDARD 11)
+SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(CMAKE_CONFIG_DIR ${LtApplication_SOURCE_DIR}/cmake)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CONFIG_DIR}/Modules)
-MESSAGE(STATUS "CMAKE_MODULE_PATH:" ${CMAKE_MODULE_PATH})
 
 option(LTIO_ENABLE_ASYNCMYSQL "enabel ltasyncmysql integration" ON)
 
@@ -22,16 +22,8 @@ if (NOT CMAKE_RUNTIME_OUTPUT_DIRECTORY)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin")
 endif()
 
-find_package(MYSQL  REQUIRED)
-
 include(cmake/common.cmake)
 include(cmake/include.cmake)
-
-ADD_SUBDIRECTORY(thirdparty/ltio)
-ADD_SUBDIRECTORY(app)
-ADD_SUBDIRECTORY(integration)
-
-ADD_SUBDIRECTORY(examples)
 
 MESSAGE(STATUS "CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
 
@@ -39,3 +31,8 @@ MESSAGE(STATUS "SOURCE dir " ${LtApplication_SOURCE_DIR})
 MESSAGE(STATUS "BINARY dir " ${LtApplication_BINARY_DIR})
 MESSAGE(STATUS "CMAKE lib output dir " ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 MESSAGE(STATUS "CMAKE binary output dir " ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+# < Option settings
+
+option(LTAPP_BUILD_EXAMPLES  "Build UNITTEST" ON)
+option(LTAPP_BUILD_UNITTESTS "Build UNITTEST" ON)
+option(LTAPP_BUILD_SHARED_LIBS "Build shared libraries" ON)

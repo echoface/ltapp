@@ -1,4 +1,7 @@
 build/
+thirdparty/grpc
+compile_commands.json
+
 .clangd/
 # Prerequisites
 *.d

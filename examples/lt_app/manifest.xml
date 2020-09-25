@@ -1,0 +1,61 @@
+<config>
+  <io_service
+    io_count="8"
+    fd_count="65535"
+    worker_count="8"/>
+
+  <rtb
+    admaster_id_hack="true"
+    youku_max_price="4000000"
+    custom_monitor_js="//pic.fancyapi.com/SDK/et.min.js"
+    open_ad_filter_code = "true"
+  />
+
+  <argumenter
+    config_path="../conf/argumenter.xml"
+  />
+
+  <broker config_path="../conf/broker.xml"/>
+
+  <services>
+    <service address="http://0.0.0.0:12000" name="rtb_server"/>
+    <service address="rapid://0.0.0.0:12001" name="rtb_rapid"/>
+  </services>
+
+  <clients>
+    <router name="ta_info_pro">
+      <client address='redis://192.168.28.1:7001' timeout='500' count='100' heartbeat='1000' />
+      <client address='redis://192.168.28.1:7002' timeout='500' count='100' heartbeat='1000' />
+      <client address='redis://192.168.28.2:7001' timeout='500' count='100' heartbeat='1000' />
+      <client address='redis://192.168.28.2:7002' timeout='500' count='100' heartbeat='1000' />
+    </router>
+    <router name="pacing_client">
+      <client address="http://192.168.28.43:6902" timeout= "1000" count="10" heartbeat="0"/>
+    </router>
+    <router name="occupy_cache">
+      <client address='redis://192.168.28.43:6900' timeout='50' count='50' heartbeat='1000' />
+    </router>
+  </clients>
+
+  <datasource config="../conf/data_source.xml"/>
+  <searcher config= "../conf/searcher.xml" />
+  <mmk_sdk config= "../conf/mma_sdk.xml" />
+
+  <kafkas>
+    <kafka
+      broker_ver="0.11.0.2"
+      api_ver_req="true"
+      compression="true"
+      brokers="192.168.28.248:9092,192.168.28.98:9092,192.168.28.100:9092"
+      topic="fancy_req_log_new" />
+  </kafkas>
+
+  <discovery>
+    <register
+      type="etcd"
+      port="12000"
+      master="true"
+      prefix="/ad_engine_services/prometheus_metrics/"
+      endpoint="192.168.28.243:2379" path="v3alpha" ttl="10"/>
+  </discovery>
+</config>
