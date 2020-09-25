@@ -8,9 +8,9 @@ SET(APPSRC
 ADD_LIBRARY(ltapp STATIC ${APPSRC})
 
 target_link_libraries(ltapp ltio)
-target_include_directories(ltapp PUBLIC
-  ${PROJECT_SOURCE_DIR}
-  ${PROJECT_SOURCE_DIR}/thirdparty
+target_include_directories(ltapp
+  PUBLIC ${PROJECT_SOURCE_DIR}
+  PUBLIC ${PROJECT_SOURCE_DIR}/thirdparty
   )
 
 add_dependencies(ltapp
