@@ -35,7 +35,7 @@ else()
     $ENV{MYSQL_DIR}/include
     /usr/local/mysql/include
     /usr/local/include/mysql
-    PATH_SUFFIXES include 
+    PATH_SUFFIXES include
   )
   find_library(MYSQL_LIBRARIES NAMES ${MYSQL_NAMES}
     PATHS
