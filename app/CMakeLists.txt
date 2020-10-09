@@ -1,5 +1,3 @@
-ADD_DEFINITIONS(-std=c++11)
-
 SET(APP_SRC
   shell/application.cc
   shell/app_context.cc
@@ -21,19 +19,14 @@ SET(APP_SRC
 
 ADD_LIBRARY(ltapp STATIC ${APP_SRC})
 
-include_directories(
-  .
-  $ENV{HOME}/include
-)
-
-add_library(ltapp STATIC ${APP_SRC})
-
 add_dependencies(ltapp ltio)
 target_link_libraries(ltapp ltio)
 target_include_directories(ltapp
+  PUBLIC ./
+  PUBLIC $ENV{HOME}/include
   PUBLIC ${PROJECT_SOURCE_DIR}
   PUBLIC ${PROJECT_SOURCE_DIR}/thirdparty
-  )
+)
 
 
 #ADD_LIBRARY(ltapp_shared SHARED ${APPSRC})
