@@ -1,4 +1,3 @@
-
 #include "watch_context.h"
 
 namespace lt {
@@ -27,19 +26,18 @@ bool WatchContext::InitWithQueue(const WatchRequest& request,
   etcd_ctx_await_end(*this);
 
   if (!response_.created()) {
-    LOG(INFO) << "watch context:" << this << " failed created a watcher";
+    LOG(INFO) << "failed created a watcher";
     return false;
   }
+
   watch_id_ = response_.watch_id();
-  LOG(INFO) << "create watch success, watch id:" << watch_id_;
+  LOG(INFO) << "watcher created, watch id:" << watch_id_;
   return watch_id_ >= 0;
 }
 
-void WatchContext::Cancel() {
-  context_.TryCancel();
-}
-
 bool WatchContext::WaitEvent(WatchResponse* response) {
+  CHECK(CO_CANYIELD);
+
   etcd_ctx_await_pre(*this);
   stream_->Read(&response_, this);
   etcd_ctx_await_end(*this);
@@ -51,24 +49,26 @@ bool WatchContext::WaitEvent(WatchResponse* response) {
 
 // this all is safe for calling in anywhere
 void WatchContext::WaitEvent(WatchEventFunc handler) {
-  co_go loop_ << std::bind(&WatchContext::wait_event_internal, this, handler);
+  CO_GO loop_ << [&]() {WaitInternal(std::move(handler));};
 }
 
-void WatchContext::wait_event_internal(WatchEventFunc handler) {
-  CHECK(co_can_yield);
+void WatchContext::WaitInternal(WatchEventFunc handler) {
+  CHECK(CO_CANYIELD);
 
   do {
     etcd_ctx_await_pre(*this);
     stream_->Read(&response_, this);
     etcd_ctx_await_end(*this);
 
-    if (!success_) {
+    if (!Success()) {
+      LOG(ERROR) << __FUNCTION__ << " wait event";
       continue;
     }
+
     for (const auto& event : response_.events()) {
       handler(event);
     }
-  }while(1);
+  }while(!IsCanceled());
 }
 
 }//end lt

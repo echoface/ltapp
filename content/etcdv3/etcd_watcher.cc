@@ -1,14 +1,15 @@
-
 #include "etcd_watcher.h"
-#include "grpc/grpc.h"
-#include "proto/rpc.pb.h"
-#include "context/call_context.h"
+
 #include <base/coroutine/coroutine_runner.h>
+#include "context/call_context.h"
+#include "etcdv3/proto/rpc.grpc.pb.h"
 
 namespace lt {
 
 EtcdWatcher::EtcdWatcher(EtcdClientV3* client)
   : client_(client) {
+  stub_ = Watch::NewStub(client_->Channel());
+  CHECK(stub_);
 }
 
 //create and return a context for recieve DEL/PUT Notify
@@ -32,28 +33,23 @@ RefWatchContext EtcdWatcher::Watch(const std::string& key, bool with_prefix) {
 }
 
 RefWatchContext EtcdWatcher::Watch(const WatchRequest& request) {
-  CHECK(co_can_yield);
+  CHECK(CO_CANYIELD);
 
-  Watch::Stub* stub = watch_stub();
-  RefWatchContext ctx(new WatchContext(stub, loop()));
+  RefWatchContext ctx(new WatchContext(stub_.get(), loop()));
 
-  if (!ctx->InitWithQueue(request, c_queue())) {
+  if (!ctx->InitWithQueue(request, complete_queue())) {
     LOG(ERROR) << __func__ << " init watcher failed";
     return nullptr;
   }
   return ctx;
 }
 
-Watch::Stub* EtcdWatcher::watch_stub() {
-  return client_->watch_stub_.get();
-}
-
 base::MessageLoop* EtcdWatcher::loop() {
-  return client_->loop_;
+  return client_->GetLoop();
 }
 
-grpc::CompletionQueue* EtcdWatcher::c_queue() {
-  return &client_->c_queue_;
+grpc::CompletionQueue* EtcdWatcher::complete_queue() {
+  return client_->GetCompletionQueue();
 }
 
-}
+} //end namespace lt

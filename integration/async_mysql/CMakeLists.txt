@@ -5,8 +5,8 @@ add_library(ltasyncmysql STATIC
 )
 
 target_link_libraries(ltasyncmysql
-  ltio
-  ${MYSQL_LIBRARIES}
+  PUBLIC ltio
+  PUBLIC ${MYSQL_LIBRARIES}
   )
 
 ltio_default_properties(ltasyncmysql)

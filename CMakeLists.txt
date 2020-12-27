@@ -4,7 +4,6 @@ project(LtApplication VERSION 0.0.1 LANGUAGES C CXX)
 
 # for generate omplete database
 SET(CMAKE_CXX_STANDARD 11)
-#SET(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 
 SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -12,7 +11,12 @@ SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CONFIG_DIR ${LtApplication_SOURCE_DIR}/cmake)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CONFIG_DIR}/Modules)
 
-option(LTIO_ENABLE_ASYNCMYSQL "enabel ltasyncmysql integration" ON)
+# < Option settings
+option(USE_SYSTEM_GRPC "Use system installed gRPC" OFF)
+option(LTAPP_BUILD_EXAMPLES  "Build UNITTEST" ON)
+option(LTAPP_BUILD_UNITTESTS "Build UNITTEST" ON)
+option(LTAPP_BUILD_SHARED_LIBS "Build shared libraries" ON)
+option(LTAPP_ENABLE_ASYNCMYSQL "enabel ltasyncmysql integration" ON)
 
 if (NOT CMAKE_ARCHIVE_OUTPUT_DIRECTORY)
   SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
@@ -28,13 +32,5 @@ include(cmake/common.cmake)
 include(cmake/include.cmake)
 
 MESSAGE(STATUS "CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
-
-MESSAGE(STATUS "SOURCE dir " ${LtApplication_SOURCE_DIR})
-MESSAGE(STATUS "BINARY dir " ${LtApplication_BINARY_DIR})
 MESSAGE(STATUS "CMAKE lib output dir " ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 MESSAGE(STATUS "CMAKE binary output dir " ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-# < Option settings
-
-option(LTAPP_BUILD_EXAMPLES  "Build UNITTEST" ON)
-option(LTAPP_BUILD_UNITTESTS "Build UNITTEST" ON)
-option(LTAPP_BUILD_SHARED_LIBS "Build shared libraries" ON)

@@ -2,11 +2,10 @@
 #define _LT_FW_APPLICTION_CONTEXT_H_H
 
 #include <glog/logging.h>
-#include <app/etcdv3/proto/kv.pb.h>
-#include <app/etcdv3/proto/rpc.grpc.pb.h>
+#include <etcdv3/proto/rpc.grpc.pb.h>
 
-#include "app/shell/app_context.h"
-#include "app/config/lt_config.h"
+#include "content/shell/app_context.h"
+#include "content/config/lt_config.h"
 #include "net_io/server/http_server/http_server.h"
 #include <base/message_loop/repeating_timer.h>
 

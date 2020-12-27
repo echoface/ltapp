@@ -44,7 +44,7 @@ void Application::Run() {
   main_.Start();
 
   bool success = false;
-  co_go &main_ << [&, this]() {
+  CO_GO &main_ << [&, this]() {
     success = RunBootupTask();
   };
   std::cout << " start...", std::cout.flush();
@@ -70,24 +70,26 @@ void Application::Run() {
   context_->OnStop();
 
   success = false;
-  co_go &main_ << [&]() {
+  CO_GO &main_ << [&]() {
     RunCleanupTask();
   };
   std::cout << " stop...", std::cout.flush();
   {
     std::unique_lock<std::mutex> lock(mutex_);
-    while (cv_.wait_for(lock,std::chrono::microseconds(100)) == std::cv_status::timeout) {
+    while (std::cv_status::timeout ==
+           cv_.wait_for(lock, std::chrono::microseconds(100))) {
       std::cout << '.';
       std::cout.flush();
-    };
+    }
   }
   std::cout << " application finish done!" << std::endl;
 }
 
 bool Application::RunCleanupTask() {
-  base::WaitGroup wg;
 
-  std::vector<BootTask*> failed_tasks_; 
+  std::shared_ptr<base::WaitGroup> wg = base::WaitGroup::New();
+
+  std::vector<BootTask*> failed_tasks_;
 
   for (auto& item : on_finish_) {
     LOG(INFO) << "run cleanup task:" << item->name;
@@ -100,18 +102,18 @@ bool Application::RunCleanupTask() {
         break;
       case ExcRunType::kAsyncRunType:
       case ExcRunType::kAsyncCoroType: {
-        BootTask* _task = item.get(); 
 
-        auto async_run_fn = [&, _task]() {
+        BootTask* _task = item.get();
+        auto async_run_fn = [&, wg, _task]() {
           if (!_task->task()) {
             failed_tasks_.push_back(_task);
           }
-          wg.Done();
+          wg->Done();
         };
 
-        wg.Add(1);
+        wg->Add(1);
         if (item->exc_type == ExcRunType::kAsyncCoroType) {
-          co_go &main_ << async_run_fn;
+          CO_GO &main_ << async_run_fn;
         } else {
           main_.PostTask(NewClosure(async_run_fn));
         }
@@ -121,7 +123,7 @@ bool Application::RunCleanupTask() {
     }
   }
 
-  wg.Wait();
+  wg->Wait();
   for (auto task : failed_tasks_) {
     LOG(ERROR) << __func__ << " Cleanup Task:" << task->name << " Failed";
   }
@@ -131,8 +133,9 @@ bool Application::RunCleanupTask() {
 
 bool Application::RunBootupTask() {
 
-  base::WaitGroup wg;
-  std::vector<BootTask*> failed_tasks_; 
+  std::shared_ptr<base::WaitGroup> wg = base::WaitGroup::New();
+
+  std::vector<BootTask*> failed_tasks_;
 
   for (auto& item : on_start_) {
     LOG(INFO) << "run prepare task:" << item->name;
@@ -145,17 +148,17 @@ bool Application::RunBootupTask() {
       }break;
       case ExcRunType::kAsyncRunType:
       case ExcRunType::kAsyncCoroType: {
-        BootTask* _task = item.get(); 
+        BootTask* _task = item.get();
 
-        auto async_run_fn = [&, _task]() {
+        auto async_run_fn = [&, _task, wg]() {
           if (!_task->task()) {
             failed_tasks_.push_back(_task);
           }
-          wg.Done();
+          wg->Done();
         };
-        wg.Add(1);
+        wg->Add(1);
         if (item->exc_type == ExcRunType::kAsyncCoroType) {
-          co_go &main_ << async_run_fn;
+          CO_GO &main_ << async_run_fn;
         } else {
           main_.PostTask(NewClosure(async_run_fn));
         }
@@ -165,7 +168,7 @@ bool Application::RunBootupTask() {
     }
   }
 
-  wg.Wait();
+  wg->Wait();
   for (auto task : failed_tasks_) {
     LOG(ERROR) << "PrepareTask:" << task->name << " Failed";
   }

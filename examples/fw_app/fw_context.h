@@ -3,8 +3,8 @@
 
 #include <glog/logging.h>
 
-#include "app/app_context.h"
-#include "app/config_loader.h"
+#include "content/app_context.h"
+#include "content/config_loader.h"
 
 class FWContext : public AppContext {
   public:

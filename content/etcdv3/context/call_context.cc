@@ -15,7 +15,7 @@ void CallContext::ResumeContext(bool ok) {
 
 void CallContext::LockContext() {
   success_ = false;
-  resumer_ = co_resumer();
+  resumer_ = std::move(CO_RESUMER);
 }
 
 }

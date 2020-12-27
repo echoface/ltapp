@@ -1,4 +1,3 @@
-
 #include "base/closure/closure_task.h"
 #include "base/message_loop/message_loop.h"
 #include <atomic>

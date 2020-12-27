@@ -2,7 +2,7 @@
 #include "fw_context.h"
 #include "glog/logging.h"
 #include "gflags/gflags.h"
-#include "app/application.h"
+#include "content//application.h"
 #include "thirdparty/tinyxml2/tinyxml2.h"
 
 DECLARE_string(config);

@@ -5,8 +5,9 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/thirdparty
 )
 
-ADD_SUBDIRECTORY(app)
+#include(cmake/grpc_deps.cmake)
+
+ADD_SUBDIRECTORY(content)
 ADD_SUBDIRECTORY(examples)
 ADD_SUBDIRECTORY(integration)
 ADD_SUBDIRECTORY(thirdparty/ltio)
-ADD_SUBDIRECTORY(thirdparty/grpc)
