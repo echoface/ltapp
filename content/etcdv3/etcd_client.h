@@ -67,7 +67,7 @@ private:
   friend class EtcdWatcher;
 
   //override from base::PersistRunner
-  void Sched();
+  void Run();
 
   void PollCompleteQueueMain();
 

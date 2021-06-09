@@ -176,7 +176,7 @@ void EtcdClientV3::Finalize() {
   c_queue_.Shutdown();
 }
 
-void EtcdClientV3::Sched() {
+void EtcdClientV3::Run() {
   bool ok = false;
   void* got_tag = nullptr;
   bool poll_continue = true;
