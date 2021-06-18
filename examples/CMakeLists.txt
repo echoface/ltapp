@@ -1,10 +1,10 @@
 
-add_executable(sample_app
+add_executable(simple_app
   lt_app/main.cpp
   lt_app/app_context_impl.cc
 )
 
-target_link_libraries(sample_app
+target_link_libraries(simple_app
   ltapp
 )
 
@@ -24,7 +24,5 @@ target_link_libraries(etcdclient_test
   )
 
 target_include_directories(etcdclient_test
-  PUBLIC
-  ${PROJECT_SOURCE_DIR}/app
-  ${PROJECT_SOURCE_DIR}/thirdparty
+  PUBLIC ${PROJECT_SOURCE_DIR}/app
 )

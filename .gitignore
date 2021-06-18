@@ -2,6 +2,8 @@ build/
 thirdparty/grpc
 compile_commands.json
 
+.cache
+
 .clangd/
 # Prerequisites
 *.d

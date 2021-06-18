@@ -25,12 +25,13 @@ using etcdserverpb::PutRequest;
 using grpc::protobuf::Message;
 
 using KeyValues = std::vector<mvccpb::KeyValue>;
+using RefRPCChanel = std::shared_ptr<grpc::Channel>;
 
 namespace lt {
 
 class EtcdWatcher;
 
-class EtcdClientV3 : base::PersistRunner {
+class EtcdClientV3 {
 public:
   struct Options {
     std::string addr;
@@ -47,52 +48,36 @@ public:
 
   // all etcd option run in corotuine context
   //success return a reversion id, return -1 when failed
-  __CO_WAIT__
-  int64_t Put(const KeyValue& kvs);
+  __CO_WAIT__ int64_t Put(const KeyValue& kvs);
+
+  __CO_WAIT__ int64_t Put(const PutRequest& request);
+
+  __CO_WAIT__ int64_t LeaseGrant(int ttl);
 
   __CO_WAIT__
-  int64_t Put(const PutRequest& request);
+  KeyValues Range(const std::string &key, bool with_prefix = true);
 
-  __CO_WAIT__
-  int64_t LeaseGrant(int ttl);
-
-  __CO_WAIT__
-  KeyValues Range(const std::string& key, bool with_prefix = true);
+  __CO_WAIT__ int64_t TimeToAlive(int64_t lease_id);
 
   /*this keepalive lease in background and return a context use for cancelling*/
-  __CO_WAIT__
   RefKeepAliveContext LeaseKeepalive(int64_t lease, int64_t interval = 1000);
-
 private:
   friend class EtcdWatcher;
 
-  //override from base::PersistRunner
-  void Run();
-
-  void PollCompleteQueueMain();
-
   base::MessageLoop* GetLoop() {return loop_;};
 
-  std::shared_ptr<grpc::Channel> Channel() {
+  RefRPCChanel Channel() {
     return channel_;
-  }
-
-  CompletionQueue* GetCompletionQueue() {
-    return &c_queue_;
   }
 
 private:
   base::MessageLoop* loop_;
 
-  CompletionQueue c_queue_;
+  RefRPCChanel channel_;
 
   std::unique_ptr<KV::Stub> kv_stub_;
 
   std::unique_ptr<Lease::Stub> lease_stub_;
-
-  std::shared_ptr<grpc::Channel> channel_;
-
-  std::unique_ptr<std::thread> thread_;
 };
 
 } //end namespace lt

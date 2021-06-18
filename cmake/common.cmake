@@ -22,7 +22,8 @@ if (LTAPP_ENABLE_ASYNCMYSQL)
   list(APPEND LtApp_LINKER_LIBS PUBLIC ${MYSQL_LIBRARIES})
 endif()
 
-find_package(Grpc REQUIRED)
+find_package(gRPC REQUIRED)
+find_package(Threads REQUIRED)
 
 # ---[ Set debug postfix
 IF(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)

@@ -12,7 +12,6 @@ set(CMAKE_CONFIG_DIR ${LtApplication_SOURCE_DIR}/cmake)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CONFIG_DIR}/Modules)
 
 # < Option settings
-option(USE_SYSTEM_GRPC "Use system installed gRPC" OFF)
 option(LTAPP_BUILD_EXAMPLES  "Build UNITTEST" ON)
 option(LTAPP_BUILD_UNITTESTS "Build UNITTEST" ON)
 option(LTAPP_BUILD_SHARED_LIBS "Build shared libraries" ON)

@@ -39,22 +39,38 @@ using mvccpb::KeyValue;
 namespace lt {
 
 class CallContext {
-  public:
-    CallContext()
-      : cancel_(false) {}
+public:
+  CallContext() : cancel_(false), done_(false) {}
 
-    virtual ~CallContext(){};
+  virtual ~CallContext(){};
 
-    void LockContext();
+  //return true when resume has been called
+  bool LockContext();
 
-    void ResumeContext(bool ok);
+  void ResumeContext(bool ok);
 
-    bool Success() const {return success_;}
-  protected:
-    bool success_ = false;
-    std::atomic<bool> cancel_;
-  private:
-    base::LtClosure resumer_;
+  void Cancel() { cancel_.store(true); }
+
+  bool Canceled() const {return cancel_.load();}
+
+  bool Success() const { return success_; }
+
+  bool Done() const { return done_.load(); }
+
+  void Reset();
+protected:
+  bool success_ = false;
+
+  std::atomic<bool> cancel_;
+
+private:
+  //this is lite enough,
+  //almost 100% aquire lock at first try
+  base::SpinLock mu_;
+
+  // mean resume run or not
+  std::atomic<bool> done_;
+  base::LtClosure resumer_;
 };
 
 template<class R>
@@ -74,9 +90,7 @@ public:
 
   grpc::ClientContext* ClientContext() {return &context_;}
 
-  bool IsCanceled() const {return cancel_.load();}
-
-  void Cancel() {cancel_ = true; context_.TryCancel();}
+  void Cancel() { CallContext::Cancel(); context_.TryCancel();}
 protected:
   R response_;
 
@@ -86,15 +100,5 @@ protected:
 };
 
 } //end namespace lt
-
-#define etcd_ctx_await_pre(ctx)      \
-  do {(ctx).LockContext();}while(0)
-
-#define etcd_ctx_await_end(ctx)                        \
-  do {                                                 \
-    VLOG(GLOG_VINFO) << "context:" << &(ctx)           \
-      << " wait@" << __func__ << " line:" << __LINE__; \
-    CO_YIELD;                                          \
-  }while(0)
 
 #endif

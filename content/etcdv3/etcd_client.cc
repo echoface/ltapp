@@ -13,28 +13,21 @@ using etcdserverpb::PutResponse;
 using etcdserverpb::RangeRequest;
 using etcdserverpb::RangeResponse;
 using etcdserverpb::LeaseGrantResponse;
-using etcdserverpb::LeaseKeepAliveResponse;
+using etcdserverpb::LeaseTimeToLiveRequest;
 
 namespace lt {
 
 using PutContext = ResponseCallContext<PutResponse>;
 using RangeCallContext = ResponseCallContext<RangeResponse>;
 using LeaseGrantContext = ResponseCallContext<LeaseGrantResponse>;
+using LeaseTimeToLiveCtx = ResponseCallContext<etcdserverpb::LeaseTimeToLiveResponse>;
 
 EtcdClientV3::EtcdClientV3(MessageLoop* io)
   : loop_(io) {
-  loop_->PostTask(FROM_HERE,
-                  &MessageLoop::InstallPersistRunner,
-                  io, (base::PersistRunner*)this);
 }
 
 EtcdClientV3::~EtcdClientV3() {
-
   Finalize();
-
-  if (thread_ && thread_->joinable()) {
-    thread_->join();
-  }
 }
 
 void EtcdClientV3::Initilize(const Options& opt) {
@@ -47,11 +40,6 @@ void EtcdClientV3::Initilize(const Options& opt) {
 
   lease_stub_ = Lease::NewStub(channel_);
   CHECK(lease_stub_);
-
-  if (!opt.poll_in_loop) {
-    auto func = std::bind(&EtcdClientV3::PollCompleteQueueMain, this);
-    thread_.reset(new std::thread(std::move(func)));
-  }
 }
 
 
@@ -70,16 +58,14 @@ int64_t EtcdClientV3::Put(const PutRequest& request) {
 
   PutContext call_context;
 
-  etcd_ctx_await_pre(call_context);
-
-  grpc::ClientContext* context = call_context.ClientContext();
-  auto reader = kv_stub_->AsyncPut(context, request, &c_queue_);
-
-  reader->Finish(call_context.MutableResponse(),
-                 call_context.MutableStatus(),
-                 &call_context);
-
-  etcd_ctx_await_end(call_context);
+  call_context.LockContext();
+  grpc::ClientContext *context = call_context.ClientContext();
+  kv_stub_->async()->Put(context, &request, call_context.MutableResponse(),
+                         [&](grpc::Status st) {
+                           *call_context.MutableStatus() = st;
+                           call_context.ResumeContext(st.ok());
+                         });
+  CO_YIELD;
 
   if (call_context.IsStatusOK()) {
     return call_context.GetResponse().header().revision();
@@ -108,15 +94,13 @@ KeyValues EtcdClientV3::Range(const std::string& key, bool with_prefix) {
   }
 
   RangeCallContext call_ctx;
-  etcd_ctx_await_pre(call_ctx);
-
-  auto reader = kv_stub_->AsyncRange(
-    call_ctx.ClientContext(), get_request, &c_queue_);
-
-  reader->Finish(
-    call_ctx.MutableResponse(), call_ctx.MutableStatus(), &call_ctx);
-
-  etcd_ctx_await_end(call_ctx);
+  call_ctx.LockContext();
+  kv_stub_->async()->Range(call_ctx.ClientContext(), &get_request,
+                           call_ctx.MutableResponse(),
+                           [&](grpc::Status status) {
+                              call_ctx.ResumeContext(status.ok());
+                           });
+  CO_YIELD;
 
   if (!call_ctx.IsStatusOK()) {
     LOG(WARNING) << __FUNCTION__ << ", etcdclient range failed"
@@ -139,103 +123,42 @@ int64_t EtcdClientV3::LeaseGrant(int ttl) {
 
   LeaseGrantContext call_context;
 
-  etcd_ctx_await_pre(call_context);
+  call_context.LockContext();
+  lease_stub_->async()->LeaseGrant(call_context.ClientContext(), &request,
+                                   call_context.MutableResponse(),
+                                   [&](grpc::Status status) {
+                                     call_context.ResumeContext(status.ok());
+                                   });
 
-  auto reader = lease_stub_->AsyncLeaseGrant(call_context.ClientContext(),
-                                             request, &c_queue_);
-  reader->Finish(call_context.MutableResponse(),
-                 call_context.MutableStatus(), &call_context);
-
-  etcd_ctx_await_end(call_context);
-
+  CO_YIELD;
   return call_context.GetResponse().id();
 }
 
 RefKeepAliveContext EtcdClientV3::LeaseKeepalive(int64_t lease,
                                                  int64_t interval) {
   CHECK(CO_CANYIELD);
+  auto ctx = KeepAliveContext::New(loop_, lease_stub_.get());
+  CHECK(ctx->Start(lease, interval));
+  return ctx;
+}
 
-  RefKeepAliveContext call_ctx(new KeepAliveContext);
+int64_t EtcdClientV3::TimeToAlive(int64_t lease_id) {
+  CHECK(CO_CANYIELD);
 
-  if (!call_ctx->Initilize(lease_stub_.get(), &c_queue_)) {
-    LOG(ERROR) << __FUNCTION__
-    << " keeaplive initialize failed, lease id:" << lease;
-    return nullptr;
-  }
+  LeaseTimeToLiveCtx call_ctx;
+  LeaseTimeToLiveRequest request;
+  request.set_id(lease_id);
+  lease_stub_->async()->LeaseTimeToLive(
+      call_ctx.ClientContext(), &request, call_ctx.MutableResponse(),
+      [&](grpc::Status status) {
+        call_ctx.ResumeContext(status.ok());
+      });
 
-  VLOG(GLOG_VINFO) << __FUNCTION__
-    << " keeaplive stream connted, id:" << lease;
-
-  CO_GO base::MessageLoop::Current() << [=]() {
-    call_ctx->KeepAliveInternal(lease, interval);
-  };
-  return call_ctx;
+  CO_YIELD; 
+  return call_ctx.GetResponse().ttl();
 }
 
 void EtcdClientV3::Finalize() {
-  c_queue_.Shutdown();
 }
-
-void EtcdClientV3::Run() {
-  bool ok = false;
-  void* got_tag = nullptr;
-  bool poll_continue = true;
-
-  do {
-    auto deadline =
-      std::chrono::system_clock::now() + std::chrono::microseconds(0);
-
-    switch (c_queue_.AsyncNext(&got_tag, &ok, deadline)) {
-      case grpc::CompletionQueue::GOT_EVENT: {
-        // Verify that the request was completed successfully. Note that "ok"
-        // corresponds solely to the request for updates introduced by Finish().
-        LOG_IF(ERROR, !ok) << " grpc operation failed for context:" << got_tag;
-
-        // The tag in this example is the memory location of the call object
-        CallContext* call_context = static_cast<CallContext*>(got_tag);
-        GPR_ASSERT(call_context);
-
-        call_context->ResumeContext(ok);
-        poll_continue = true;
-      } break;
-      case grpc::CompletionQueue::TIMEOUT: {
-        poll_continue = false;
-        LOG_EVERY_N(INFO, 10000) << __FUNCTION__
-          << ", etcd grpc CompletionQueue poll shutdown or timeout";
-      } break;
-      case grpc::CompletionQueue::SHUTDOWN: {
-        poll_continue = false;
-        LOG_EVERY_N(INFO, 10000) << __FUNCTION__
-          << ", etcd grpc CompletionQueue poll shutdown or timeout";
-      } break;
-      defaut:
-        poll_continue = false;
-        break;
-    }
-  } while(poll_continue);
-  VLOG(GLOG_VTRACE) << __func__ << " etcd grpc CompletionQueue poll";
-}
-
-void EtcdClientV3::PollCompleteQueueMain() {
-  void* got_tag;
-  bool ok = false;
-
-  // Block until the next result is available in the completion queue "cq".
-  while (c_queue_.Next(&got_tag, &ok)) {
-
-    // Verify that the request was completed successfully. Note that "ok"
-    // corresponds solely to the request for updates introduced by Finish().
-    LOG_IF(ERROR, !ok) << __FUNCTION__
-      << ", grpc operation failed for context:" << got_tag;
-
-    // The tag in this example is the memory location of the call object
-    CallContext* call_context = static_cast<CallContext*>(got_tag);
-    GPR_ASSERT(call_context);
-
-    call_context->ResumeContext(ok);
-  }
-  VLOG(GLOG_VTRACE) << __func__ << " etcd grpc CompletionQueue poll";
-}
-
 
 }//end lt

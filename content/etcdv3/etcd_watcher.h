@@ -45,18 +45,16 @@ namespace lt {
 
 class EtcdWatcher {
 public:
-  EtcdWatcher(EtcdClientV3* client);
+  EtcdWatcher(EtcdClientV3 *client);
 
-  __CO_WAIT__
-  RefWatchContext Watch(const WatchRequest& request);
+  __CO_WAIT__ RefWatchContext Watch(const WatchRequest& request,
+                                    const WatchEventFunc& callback);
 
-  __CO_WAIT__
-  RefWatchContext Watch(const std::string& key,
-                        bool with_prefix = true);
+  __CO_WAIT__ RefWatchContext Watch(const std::string& key,
+                                    const bool with_prefix,
+                                    const WatchEventFunc& callback);
 private:
   base::MessageLoop* loop();
-
-  grpc::CompletionQueue* complete_queue();
 
   EtcdClientV3* client_ = nullptr;
   std::unique_ptr<Watch::Stub> stub_;

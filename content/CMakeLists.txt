@@ -45,7 +45,6 @@ target_include_directories(ltapp
   PUBLIC ${PROJECT_SOURCE_DIR}/thirdparty
 )
 
-
 #ADD_LIBRARY(ltapp_shared SHARED ${APPSRC})
 #
 #set_target_properties(ltapp_shared PROPERTIES OUTPUT_NAME "ltapp")

@@ -5,39 +5,46 @@
 
 namespace lt {
 
-using WatchEventFunc=std::function<void (const mvccpb::Event&)>;
+using WatchEventFunc = std::function<void(const mvccpb::Event &)>;
+using WatchStreamReactor = grpc::ClientBidiReactor<WatchRequest, WatchResponse>;
 
 class EtcdWatcher;
 
-class WatchContext : public ResponseCallContext<WatchResponse> {
+class WatchContext
+  : public WatchStreamReactor,
+    public EnableShared(WatchContext) {
 public:
-  using WatcherStream = ClientAsyncReaderWriter<WatchRequest,WatchResponse>;
+  WatchContext(Watch::Stub *stub, base::MessageLoop *loop);
 
-  // NOTE: need call in coro context,
-  // be clear what you doing return true
-  // when response successe filled
-  bool WaitEvent(WatchResponse* response);
+  //return fasle when watch failed
+  __CO_WAIT__ bool Start(const WatchRequest& /*req*/,
+                         const WatchEventFunc& /*callbcak*/);
 
-  // this all is safe for calling in anywhere
-  // it will return at once, when change coming,
-  // event_handler will be called
-  void WaitEvent(WatchEventFunc event_handler);
+  __CO_WAIT__ bool StopWatch();
 
-  int64_t WatchId() const {return watch_id_;}
+  int64_t WatchId() const { return watch_id_; }
+
+protected:
+  __CO_WAIT__ void watch_change_loop();
+
+  void OnWriteDone(bool ok) override;
+
+  void OnWritesDoneDone(bool /*ok*/) override;
+
+  void OnReadDone(bool ok) override;
+
+  void OnDone(const grpc::Status &s) override;
 private:
-  friend class EtcdWatcher;
+  WatchEventFunc handler_;
 
-  WatchContext(Watch::Stub* stub, base::MessageLoop* loop);
+  CallContext read_ctx_;
+  CallContext write_ctx_;
 
-  void WaitInternal(WatchEventFunc handler);
-
-  bool InitWithQueue(const WatchRequest& request,
-                     grpc::CompletionQueue* c_queue);
+  grpc::ClientContext client_ctx_;
 
   int64_t watch_id_ = 0;
   Watch::Stub* stub_ = nullptr;
-  base::MessageLoop* loop_ = nullptr;
-  std::unique_ptr<WatcherStream> stream_;
+  base::MessageLoop *loop_ = nullptr;
 };
 using RefWatchContext = std::shared_ptr<WatchContext>;
 

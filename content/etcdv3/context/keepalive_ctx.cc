@@ -1,97 +1,85 @@
-#include "keepalive_ctx.h"
+
+#include <functional>
+
+#include "base/coroutine/wait_group.h"
 
 #include "grpcpp/impl/codegen/client_context.h"
 #include "grpcpp/impl/codegen/completion_queue.h"
 
-#include "base/coroutine/wait_group.h"
+#include "keepalive_ctx.h"
 
 namespace lt {
 
-bool KeepAliveContext::Initilize(Lease::Stub* stub,
-                                 grpc::CompletionQueue* c_queue) {
-  CHECK(CO_CANYIELD);
-
-  etcd_ctx_await_pre(*this);
-  auto client_ctx = ClientContext();
-  stream_ = stub->AsyncLeaseKeepAlive(client_ctx, c_queue, this);
-  etcd_ctx_await_end(*this);
-  return IsStatusOK();
+//this
+//static
+RefKeepAliveContext KeepAliveContext::New(base::MessageLoop *loop,
+                                          Lease::Stub *stub) {
+  return RefKeepAliveContext(new KeepAliveContext(loop, stub));
 }
 
-void KeepAliveContext::KeepAliveInternal(int64_t lease_id,
-                                         int64_t interval) {
-  CHECK(CO_CANYIELD);
+KeepAliveContext::KeepAliveContext(base::MessageLoop *l, Lease::Stub *stub)
+    : stub_(stub), loop_(l) {
+  CHECK(l);
+}
 
-  auto wc = base::WaitGroup::New();
-  wc->Add(2);
+bool KeepAliveContext::Start(int64_t lease_id, int64_t interval) {
 
-  //write keepalive request
-  CO_GO base::MessageLoop::Current() << [&, wc]() {
+  client_ctx_.~ClientContext();
+  new (&client_ctx_) grpc::ClientContext();
 
-    CallContext write_context;
+  lease_id_ = lease_id;
+  interval_ = interval;
 
-    KeepaliveReq request;
-    request.set_id(lease_id);
+  stub_->async()->LeaseKeepAlive(&client_ctx_, this);
+  StartCall();
 
-    int err_counter = 0;
-    do {
-      VLOG(GLOG_VTRACE) << "going to send keepalive request, lease:" << lease_id;
+  request_.set_id(lease_id);
+  StartWrite(&request_);
+  return true;
+}
 
-      etcd_ctx_await_pre(write_context);
-      stream_->Write(request, &write_context);
-      etcd_ctx_await_end(write_context);
-      if (write_context.Success()) {
-        err_counter = 0;
-        LOG_EVERY_N(INFO, 100) << "send keepalive request, lease:" << lease_id;
-      } else if (++err_counter >= 6) {
-        LOG(ERROR) << "send keepalive request fail, lease:" << lease_id;
-        break;
-      }
-      CO_SLEEP(interval);
-    } while(!IsCanceled() && err_counter < 6);
+void KeepAliveContext::Wait() {
+  if (LockContext() == true) {
+    return;
+  }
+  // false: mean ResumeContext not call before resumer` be set
+  // so it's ok, bz of resumer will be sched into current thread
+  CO_YIELD;
+}
 
-    LOG(INFO) << "close keepalive writer, lease:" << lease_id;
-    etcd_ctx_await_pre(write_context);
-    stream_->WritesDone(&write_context);
-    etcd_ctx_await_end(write_context);
-    LOG(INFO) << "close keepalive writer done, lease:" << lease_id;
+void KeepAliveContext::OnDone(const grpc::Status &s) {
+  LOG(INFO) << __FUNCTION__
+    << " keepalive rpc done, msg:" << s.error_message();
+  ResumeContext(s.ok());
+}
 
-    cancel_ = true;
-    wc->Done();
-  };
+void KeepAliveContext::OnReadDone(bool ok) {
+  LOG(INFO) << __FUNCTION__ << " callback, ok:" << ok;
 
-  CO_GO base::MessageLoop::Current() << [&, wc]() {
+  if (!ok) {
+    LOG(ERROR) << __FUNCTION__ << ", read response failed";
+    ResumeContext(false);
+  }
 
-    CallContext read_context;
-    do {
-      VLOG(GLOG_VTRACE) << "going to read keepalive response, lease:" << lease_id;
-      etcd_ctx_await_pre(read_context);
+  if (Canceled()) {
+    return StartWritesDone();
+  }
 
-      stream_->Read(MutableResponse(), &read_context);
+  // NOTE: enable shared from this
+  auto ref_this = shared_from_this();
+  auto next = [ref_this, this]() { ref_this->StartWrite(&request_); };
+  loop_->PostDelayTask(NewClosure(next), interval_);
+}
 
-      etcd_ctx_await_end(read_context);
+void KeepAliveContext::OnWriteDone(bool ok) {
+  LOG(INFO) << __FUNCTION__ << " callback, ok:" << ok;
+  LOG_IF(ERROR, !ok) << __FUNCTION__ << "write request failed";
 
-      if (!Success()) {
-        LOG(ERROR) << "read keepalive response failed, id:" << lease_id;
-        break;
-      }
+  ok ? StartRead(&response_) : ResumeContext(false);
+}
 
-      LOG_EVERY_N(INFO, 100) << "read keepalive response, lease:" << lease_id;
-    } while(!IsCanceled());
-
-    cancel_ = true;
-    wc->Done();
-  };
-
-  wc->Wait();
-
-  //got final status from server
-  VLOG(GLOG_VTRACE) << __func__ << " going to close stream, id:" << lease_id;
-  etcd_ctx_await_pre(*this);
-  stream_->Finish(MutableStatus(), this);
-  etcd_ctx_await_end(*this);
-
-  VLOG(GLOG_VTRACE) << __func__ << " stream closed with status:" << DumpStatusMessage();
+void KeepAliveContext::OnWritesDoneDone(bool ok) {
+  LOG(INFO) << __FUNCTION__ << " callback, ok:" << ok;
 }
 
 }//end lt

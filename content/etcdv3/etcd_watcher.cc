@@ -6,6 +6,7 @@
 
 namespace lt {
 
+//static
 EtcdWatcher::EtcdWatcher(EtcdClientV3* client)
   : client_(client) {
   stub_ = Watch::NewStub(client_->Channel());
@@ -13,7 +14,9 @@ EtcdWatcher::EtcdWatcher(EtcdClientV3* client)
 }
 
 //create and return a context for recieve DEL/PUT Notify
-RefWatchContext EtcdWatcher::Watch(const std::string& key, bool with_prefix) {
+RefWatchContext EtcdWatcher::Watch(const std::string &key,
+                                   const bool with_prefix,
+                                   const WatchEventFunc& callback) {
 
   WatchRequest watch_req;
 
@@ -22,6 +25,7 @@ RefWatchContext EtcdWatcher::Watch(const std::string& key, bool with_prefix) {
   create_req->set_key(key);
   create_req->set_prev_kv(true);
   create_req->set_start_revision(0);
+  create_req->set_watch_id(1);
 
   if (with_prefix) {
     std::string range_end(key);
@@ -29,15 +33,16 @@ RefWatchContext EtcdWatcher::Watch(const std::string& key, bool with_prefix) {
     range_end.back() = ascii+1;
     create_req->set_range_end(range_end);
   }
-  return Watch(watch_req);
+  return Watch(watch_req, callback);
 }
 
-RefWatchContext EtcdWatcher::Watch(const WatchRequest& request) {
+RefWatchContext EtcdWatcher::Watch(const WatchRequest& request,
+                                   const WatchEventFunc& callback) {
   CHECK(CO_CANYIELD);
 
   RefWatchContext ctx(new WatchContext(stub_.get(), loop()));
 
-  if (!ctx->InitWithQueue(request, complete_queue())) {
+  if (!ctx->Start(request, callback)) {
     LOG(ERROR) << __func__ << " init watcher failed";
     return nullptr;
   }
@@ -46,10 +51,6 @@ RefWatchContext EtcdWatcher::Watch(const WatchRequest& request) {
 
 base::MessageLoop* EtcdWatcher::loop() {
   return client_->GetLoop();
-}
-
-grpc::CompletionQueue* EtcdWatcher::complete_queue() {
-  return client_->GetCompletionQueue();
 }
 
 } //end namespace lt

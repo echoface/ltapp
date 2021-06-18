@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.5)
 
 SET(LT_INTEGRATION_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
